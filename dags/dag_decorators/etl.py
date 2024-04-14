@@ -1,16 +1,14 @@
 import sys
 import os
 
-# work_dir = os.getenv('WORK_DIR')
-
-# sys.path.append(work_dir)
-sys.path.append(os.path.abspath("/opt/airflow/"))
+sys.path.append(os.path.abspath("/home/samuelescalante/prueba_workshop"))
 
 
 from transformations.transformations import *
 from src.models.database_models import GrammyAwards
+from src.models.database_models import SongsData
 from src.database.db_connection import get_engine
-from sqlalchemy import create_engine
+from sqlalchemy import inspect, Table, MetaData, insert, select
 from sqlalchemy.orm import sessionmaker
 import logging as log
 import json
@@ -20,49 +18,51 @@ from pydrive2.drive import GoogleDrive
 
 log.basicConfig(level=log.INFO)
 
-def connect_to_database():
-    """
-    Connect to the database.
-    
-    Parameters:
-        None
-        
-    Returns:
-        str: The URL of the database connection.
-    """
-    url = 'postgresql+psycopg2://airflow:airflow@postgres/airflow'
-    connection = create_engine(url)
-    
-    # Obtener la URL de conexión desde el objeto Engine
-    connection_url = str(connection.url)
-    
-    log.info('Connected to the database successfully!')
-    return connection_url
-
-def query_grammy_data() -> pd.DataFrame:
-    """
-    Query the Grammy data from the database.
-    
-    Parameters:
-        None
-
-    Returns:
-        DataFrame: The DataFrame containing the queried data.
-    """
+def grammy_process():
     connection = get_engine()
     Session = sessionmaker(bind=connection)
     session = Session()
 
     try:
-        query = session.query(GrammyAwards).statement
-        df = pd.read_sql(query, connection)
-    except Exception as e:
-        log.error(f'Error executing the query: {e}')
+        if inspect(connection).has_table('grammy_awards'):
+            GrammyAwards.__table__.drop(connection)
+            log.info("Table dropped successfully.")
         
-    log.info('Query executed successfully, df ready to be processed!')
-    return df
+        GrammyAwards.__table__.create(connection)
+        log.info("Table created successfully.")
 
-def transform_grammys_data(df : pd.DataFrame) -> pd.DataFrame:
+        transformations = Transformations('data/the_grammy_awards.csv')
+        transformations.insert_id()
+        transformations.df['year'] = pd.to_datetime(transformations.df['year'], format='%Y')
+        log.info("Data transformed successfully.")
+
+        df = transformations.df
+
+        metadata = MetaData()
+        table = Table('grammy_awards', metadata, autoload=True, autoload_with=connection)
+
+        with connection.connect() as conn:
+            values = [{col: row[col] for col in df.columns} for _, row in df.iterrows()]
+
+            conn.execute(insert(table), values)
+        
+        log.info('Data loaded successfully')
+
+        log.info('Starting query')
+
+        select_stmt = select([table])
+
+        result_proxy = connection.execute(select_stmt)
+        results = result_proxy.fetchall()
+
+        column_names = table.columns.keys()
+        df_2 = pd.DataFrame(results, columns=column_names)
+        return df_2.to_json(orient='records')
+
+    except Exception as e:
+        log.error(f"Error processing data: {e}")
+
+def transform_grammys_data(json_data) -> pd.DataFrame:
     """
     Transform the Grammy nominations data.
     
@@ -72,6 +72,12 @@ def transform_grammys_data(df : pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame: The transformed DataFrame.
     """
+
+    #log.info('Data type is: ', type(json_data))
+    json_data = json.loads(json_data)
+    df = pd.DataFrame(json_data)
+
+    log.info('Starting transformations...')
 
     colums_drop = ['published_at', 'updated_at', 'img']
     drop_columns(df, colums_drop)
@@ -83,8 +89,9 @@ def transform_grammys_data(df : pd.DataFrame) -> pd.DataFrame:
     drop_null_values(df, remove_nulls)
 
     rename_columns(df, {'winner': 'nominee_status'})
-    
-    return df
+
+    log.info('Transformations successfully')
+    return df.to_json(orient='records')
 
 
 def read_spotify_data(file_path: str) -> pd.DataFrame:
@@ -113,7 +120,7 @@ def transform_spotify_data(json_data) :
     Returns:
         DataFrame: The transformed DataFrame.
     """
-    log.info('Data type is: ', type(json_data))
+    #log.info('Data type is: ', type(json_data))
     json_data = json.loads(json_data)
     df = pd.DataFrame(json_data)
 
@@ -141,18 +148,28 @@ def transform_spotify_data(json_data) :
     return df.to_json(orient='records')
 
 
-def merge_datasets(dataset1 : pd.DataFrame, dataset2: pd.DataFrame) -> pd.DataFrame:
+def merge_datasets(json_data1, json_data2) -> pd.DataFrame:
     """
     Merge the two datasets.
     
     Parameters:
-        dataset1 (DataFrame): The first dataset.    
-        dataset2 (DataFrame): The second dataset.
+        dataset1 (DataFrame): The first dataset. Grammy Awards   
+        dataset2 (DataFrame): The second dataset. Spotify
         
     Returns:
         DataFrame: The merged dataset.
     """
+
+    #log.info('Data type is: ', type(json_data1))
+    json_data1 = json.loads(json_data1)
+    dataset1 = pd.DataFrame(json_data1)
+
+    log.info('Data type is: ', type(json_data2))
+    json_data2 = json.loads(json_data2)
+    dataset2 = pd.DataFrame(json_data2)
+
     df_merged = dataset2.merge(dataset1, how='left', left_on='track_name', right_on='nominee')
+
 
     fill_columns = ['title', 'category']
     fill_null_values(df_merged,fill_columns, 'Not applicable' )
@@ -165,10 +182,41 @@ def merge_datasets(dataset1 : pd.DataFrame, dataset2: pd.DataFrame) -> pd.DataFr
 
     log.info('Datasets merged and transformed successfully!')
 
-    return df_merged
+    log.info('df columns: %s', df_merged.columns)
 
+    return df_merged.to_json(orient='records')
 
+def load_merge(json_data):
 
+    json_data = json.loads(json_data)
+    df = pd.DataFrame(json_data)
+
+    df.insert(0, 'id', df.index + 1)
+
+    connection = get_engine()
+
+    try:
+        if inspect(connection).has_table('songs_data'):
+            SongsData.__table__.drop(connection)
+            log.info("Table dropped successfully.")
+        
+        SongsData.__table__.create(connection)
+        log.info("Table created successfully.")
+
+        metadata = MetaData()
+        table = Table('songs_data', metadata, autoload=True, autoload_with=connection)
+
+        with connection.connect() as conn:
+            values = [{col: row[col] for col in df.columns} for _, row in df.iterrows()]
+
+            conn.execute(insert(table), values)
+
+        log.info('Data loaded successfully')
+
+        return df.to_json(orient='records')
+    
+    except Exception as e:
+        log.error(f"Error processing data: {e}")
 
 CREDENCIALS_PATH = 'credentials_module.json'
 
@@ -185,7 +233,7 @@ def login():
 
 
 
-def load_dataset_to_drive(df : pd.DataFrame , title : str , folder_id: str):
+def load_dataset_to_drive(json_data , title : str , folder_id: str):
     """
     Load the dataset to Google Drive.
     
@@ -197,29 +245,22 @@ def load_dataset_to_drive(df : pd.DataFrame , title : str , folder_id: str):
     Returns:
         None
     """
+
+    json_data = json.loads(json_data)
+    df = pd.DataFrame(json_data)
+
     drive = login()
 
-    csv_string = df.to_csv(index=False) #pasarle el csv directamente
+    csv_string = df.to_csv(index=False) 
 
     file = drive.CreateFile({'title' : title ,
                              'parents': [{'kind': 'drive#fileLink', 'id': folder_id}],
                              'mimeTypp': 'text/csv'})
     
-    file.SetContentString(csv_string) #cambiar por set content file
+    file.SetContentString(csv_string) 
     file.Upload()
 
     log.info('Dataset loaded to Google Drive successfully!')
 
 
 
-if __name__ == '__main__':
-    
-    df_grammy_data = query_grammy_data() # Ejecuta el query y retorna un DataFrame se guarda en df_grammy_data
-    df_transformed = transform_grammys_data(df_grammy_data) # Recibe el Dataframe de la función anterior y lo transforma
-
-    df_spotify_data = read_spotify_data('data/spotify_dataset.csv') # Retorna un DataFrame con la data de spotify
-    df_transformed_spotify = transform_spotify_data(df_spotify_data) # Recibe el DataFrame de la función anterior y lo transforma
-
-    df_merged = merge_datasets(df_transformed, df_transformed_spotify)
-
-    load_dataset_to_drive(df_merged, 'merged_dataset_prueba1.csv', '1ysWMDSUXVJrr0YmCS7fG3NliEJDbgMRl')

@@ -3,6 +3,13 @@ Database Connection Utility
 
 This module provides a utility function to establish a connection to a PostgreSQL database using SQLAlchemy
 """
+
+import sys
+import os
+
+sys.path.append(os.path.abspath("/home/samuelescalante/prueba_workshop"))
+
+
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -30,21 +37,23 @@ def get_engine():
     SQLAlchemyError: If there is an error establishing the database connection.
 
     """
-    dialect = os.getenv('PGDIALECT')
-    user = os.getenv('PGUSER')
-    passwd = os.getenv('PGPASSWD')
-    host = os.getenv('PGHOST')
-    port = os.getenv('PGPORT')
-    db = os.getenv('PGDB')
+    # dialect = os.getenv('PGDIALECT')
+    # user = os.getenv('PGUSER')
+    # passwd = os.getenv('PGPASSWD')
+    # host = os.getenv('PGHOST')
+    # port = os.getenv('PGPORT')
+    # db = os.getenv('PGDB')
 
-    url = f"{dialect}://{user}:{passwd}@{host}:{port}/{db}"
+    #url = f"{dialect}://{user}:{passwd}@{host}:{port}/{db}"
+    url = 'postgresql://saalesgu:1234@localhost:5432/Workshop2'
+
     try:
         if not database_exists(url):
             create_database(url)
-            log.info(f'Database {db} created successfully!')
+            log.info(f'Database  created successfully!')
         
         engine = create_engine(url)
-        log.info(f'Conected successfully to database {db}!')
+        log.info(f'Conected successfully to database!')
         return engine
     except SQLAlchemyError as e:
         log.error(f'Error: {e}')
@@ -52,3 +61,4 @@ def get_engine():
 """
  Make sure to replace the placeholder credentials with your actual database credentials.
 """
+
