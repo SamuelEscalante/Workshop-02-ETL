@@ -43,7 +43,7 @@ def grammy_process() -> json:
 
         transformations = Transformations('data/the_grammy_awards.csv')
         transformations.insert_id()
-        transformations.df['year'] = pd.to_datetime(transformations.df['year'], format='%Y')
+        #transformations.df['year'] = pd.to_datetime(transformations.df['year'], format='%Y')
         log.info("Data transformed successfully.")
 
         df = transformations.df
