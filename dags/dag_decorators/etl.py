@@ -1,7 +1,9 @@
 import sys
 import os
 
-sys.path.append(os.path.abspath("/home/samuelescalante/prueba_workshop"))
+file_path = os.getenv('WORK_DIR')
+
+sys.path.append(os.path.abspath(file_path))
 
 
 from transformations.transformations import *
@@ -9,7 +11,6 @@ from src.models.database_models import GrammyAwards
 from src.models.database_models import SongsData
 from src.database.db_connection import get_engine
 from sqlalchemy import inspect, Table, MetaData, insert, select
-from sqlalchemy.orm import sessionmaker
 import logging as log
 import json
 
@@ -18,10 +19,19 @@ from pydrive2.drive import GoogleDrive
 
 log.basicConfig(level=log.INFO)
 
-def grammy_process():
+def grammy_process() -> json:
+    """
+    Process the Grammy nominations data.
+
+    Returns:
+        JSON: The JSON representation of the DataFrame containing the Grammy nominations data.
+
+    Parameters:
+        None
+    """
+
     connection = get_engine()
-    Session = sessionmaker(bind=connection)
-    session = Session()
+
 
     try:
         if inspect(connection).has_table('grammy_awards'):
@@ -62,15 +72,15 @@ def grammy_process():
     except Exception as e:
         log.error(f"Error processing data: {e}")
 
-def transform_grammys_data(json_data) -> pd.DataFrame:
+def transform_grammys_data(json_data : json) -> json:
     """
     Transform the Grammy nominations data.
     
     Parameters:
-        df (DataFrame): The DataFrame containing the Grammy nominations data.
+        json_data (JSON): The JSON representation of the DataFrame containing the Grammy nominations data.
         
     Returns:
-        DataFrame: The transformed DataFrame.
+        json_data (JSON): The JSON representation of the transformed DataFrame.
     """
 
     #log.info('Data type is: ', type(json_data))
@@ -94,7 +104,7 @@ def transform_grammys_data(json_data) -> pd.DataFrame:
     return df.to_json(orient='records')
 
 
-def read_spotify_data(file_path: str) -> pd.DataFrame:
+def read_spotify_data(file_path: str) -> json:
     """
     Read the Spotify data from the given file path.
     
@@ -102,7 +112,7 @@ def read_spotify_data(file_path: str) -> pd.DataFrame:
         file_path (str): The file path to the Spotify data.
         
     Returns:
-        DataFrame: The DataFrame containing the Spotify data.
+        json (JSON): The JSON representation of the DataFrame containing the Spotify data.
     """
     df = pd.read_csv(file_path)
 
@@ -110,17 +120,17 @@ def read_spotify_data(file_path: str) -> pd.DataFrame:
     return df.to_json(orient='records')
 
 
-def transform_spotify_data(json_data) :
+def transform_spotify_data(json_data : json) -> json:
     """
     Transform the Spotify data.
     
     Parameters:
-        df (DataFrame): The DataFrame containing the Spotify data.
-        
+        json_data (JSON): The JSON representation of the DataFrame containing the Spotify data.      
+
     Returns:
-        DataFrame: The transformed DataFrame.
+        json (JSON): The JSON representation of the transformed DataFrame.
     """
-    #log.info('Data type is: ', type(json_data))
+
     json_data = json.loads(json_data)
     df = pd.DataFrame(json_data)
 
@@ -148,19 +158,18 @@ def transform_spotify_data(json_data) :
     return df.to_json(orient='records')
 
 
-def merge_datasets(json_data1, json_data2) -> pd.DataFrame:
+def merge_datasets(json_data1 : json, json_data2 : json) -> json :
     """
     Merge the two datasets.
     
     Parameters:
-        dataset1 (DataFrame): The first dataset. Grammy Awards   
-        dataset2 (DataFrame): The second dataset. Spotify
+        json_data1 (JSON): The first dataset. Grammy Awards   
+        json_data2 (JSON): The second dataset. Spotify
         
     Returns:
-        DataFrame: The merged dataset.
+        df_merged (JSON): The merged dataset.
     """
 
-    #log.info('Data type is: ', type(json_data1))
     json_data1 = json.loads(json_data1)
     dataset1 = pd.DataFrame(json_data1)
 
@@ -186,7 +195,16 @@ def merge_datasets(json_data1, json_data2) -> pd.DataFrame:
 
     return df_merged.to_json(orient='records')
 
-def load_merge(json_data):
+def load_merge(json_data : json) -> json:
+    """
+    Load the merged dataset to the database.
+
+    Parameters:
+        json_data (JSON): The JSON representation of the merged dataset.
+    
+    Returns:
+        json (JSON): The JSON representation of the DataFrame containing the merged dataset.
+    """
 
     json_data = json.loads(json_data)
     df = pd.DataFrame(json_data)
@@ -220,7 +238,7 @@ def load_merge(json_data):
 
 CREDENCIALS_PATH = 'credentials_module.json'
 
-def login():
+def login() -> GoogleDrive:
     gauth = GoogleAuth()
     gauth.LoadCredentialsFile(CREDENCIALS_PATH)
 
@@ -233,12 +251,12 @@ def login():
 
 
 
-def load_dataset_to_drive(json_data , title : str , folder_id: str):
+def load_dataset_to_drive(json_data : json, title : str , folder_id: str) -> None:
     """
     Load the dataset to Google Drive.
     
     Parameters:
-        df (DataFrame): The DataFrame to be uploaded.
+        json_data (JSON): The DataFrame to be uploaded.
         title (str): The title of the file.
         folder_id (str): The folder ID to load the dataset to.
         

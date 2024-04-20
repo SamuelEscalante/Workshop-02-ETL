@@ -4,15 +4,14 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime
 from airflow.decorators import dag, task
 
-
 import sys
 import os
 
-sys.path.append(os.path.abspath("/home/samuelescalante/prueba_workshop/dags/dag_decorators"))
+dag_path = os.getenv('WORK_DIR')
+
+sys.path.append(os.path.abspath(dag_path))
 
 from etl import *
-
-
 
 default_args = {
     'owner': 'airflow',

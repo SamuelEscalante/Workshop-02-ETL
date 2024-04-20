@@ -7,16 +7,21 @@ This module provides a utility function to establish a connection to a PostgreSQ
 import sys
 import os
 
-sys.path.append(os.path.abspath("/home/samuelescalante/prueba_workshop"))
+file_path = os.getenv('WORK_DIR')
 
+sys.path.append(os.path.abspath(file_path))
 
 from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 import os
 import logging as log
+import json
 
 log.basicConfig(level=log.INFO)
+
+with open(f'{file_path}/db_settings.json', 'r') as file:
+    credentials = json.load(file)
 
 def get_engine():
     """
@@ -37,15 +42,15 @@ def get_engine():
     SQLAlchemyError: If there is an error establishing the database connection.
 
     """
-    # dialect = os.getenv('PGDIALECT')
-    # user = os.getenv('PGUSER')
-    # passwd = os.getenv('PGPASSWD')
-    # host = os.getenv('PGHOST')
-    # port = os.getenv('PGPORT')
-    # db = os.getenv('PGDB')
+    dialect = credentials.get('PGDIALECT')
+    user = credentials.get('PGUSER')
+    passwd = credentials.get('PGPASSWD')
+    host = credentials.get('PGHOST')
+    port = credentials.get('PGPORT')
+    db = credentials.get('PGDB')
 
-    #url = f"{dialect}://{user}:{passwd}@{host}:{port}/{db}"
-    url = 'postgresql://saalesgu:1234@localhost:5432/Workshop2'
+    url = f"{dialect}://{user}:{passwd}@{host}:{port}/{db}"
+
 
     try:
         if not database_exists(url):
@@ -61,4 +66,3 @@ def get_engine():
 """
  Make sure to replace the placeholder credentials with your actual database credentials.
 """
-

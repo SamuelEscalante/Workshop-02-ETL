@@ -7,7 +7,7 @@ BASE = declarative_base()
 class GrammyAwards(BASE):
     __tablename__ = 'grammy_awards'
     id  = Column(Integer, primary_key=True)
-    year  = Column(Date, nullable=False)
+    year  = Column(Integer, nullable=False)
     title  = Column(String, nullable=False)
     published_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=False)
