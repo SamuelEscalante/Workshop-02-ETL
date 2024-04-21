@@ -127,7 +127,7 @@ This is how the dag should look like
 13.4 Select the tables and load the data :  
 ![image](https://github.com/SamuelEscalante/Workshop-02-ETL/assets/111151068/b32389a3-fbce-435d-9b9b-1d4cb05f5359)
 
-See my dashboard [here]() 
+See my dashboard [here](Dasboard-Workshop-2.pdf) 
 
 The data is now synchronized with power bi! You can do your own dashboard. 
 
